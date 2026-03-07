@@ -1,19 +1,46 @@
 import { useState } from 'react';
+import { loginUser, registerUser } from '../api';
 
-export default function AuthPage({ onLogin }) {
+export default function AuthPage({ onLogin, onShowToast }) {
   const [tab, setTab]   = useState('login');
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [err, setErr]   = useState('');
+  const [loading, setLoading] = useState(false);
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErr(''); };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
     if (!form.email || !form.password) { setErr('Please fill in all fields.'); return; }
     if (tab === 'register' && !form.name) { setErr('Please enter your name.'); return; }
-    const user = { name: form.name || form.email.split('@')[0], email: form.email };
-    localStorage.setItem('ecowatts_user', JSON.stringify(user));
-    onLogin(user);
+
+    try {
+      setLoading(true);
+      if (tab === 'register') {
+        await registerUser({
+          name: form.name,
+          email: form.email,
+          password: form.password,
+        });
+
+        onShowToast('Account Created Successfully', 'success');
+        setTab('login');
+        setForm((f) => ({ ...f, password: '' }));
+        return;
+      }
+
+      const user = await loginUser({
+        email: form.email,
+        password: form.password,
+      });
+      onLogin(user);
+    } catch (error) {
+      setErr(error.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -75,14 +102,10 @@ export default function AuthPage({ onLogin }) {
               <input type="password" placeholder="••••••••" value={form.password} onChange={e => set('password', e.target.value)} />
             </div>
             {err && <div className="auth-error"><i className="fa-solid fa-circle-exclamation" /> {err}</div>}
-            <button type="submit" className="auth-submit">
+            <button type="submit" className="auth-submit" disabled={loading}>
               {tab === 'login' ? <><i className="fa-solid fa-right-to-bracket" /> Sign In</> : <><i className="fa-solid fa-user-plus" /> Create Account</>}
             </button>
           </form>
-
-          <p className="auth-demo">
-            <i className="fa-solid fa-circle-info" /> Demo: enter any email & password to continue
-          </p>
         </div>
       </div>
     </div>

@@ -563,6 +563,7 @@
   transition: opacity .18s, transform .12s;
 }
 .auth-submit:hover { opacity: .88; transform: translateY(-1px); }
+.auth-submit:disabled { opacity: .75; cursor: not-allowed; transform: none; }
 
 .auth-demo {
   text-align: center;
@@ -921,7 +922,7 @@
 /*  Toast  */
 .toast {
   position: fixed;
-  bottom: 28px; right: 28px; z-index: 9999;
+  top: 28px; right: 28px; z-index: 9999;
   padding: 12px 20px;
   border-radius: 10px;
   font-size: 14px; font-weight: 500;
@@ -933,6 +934,25 @@
 }
 .toast.success { background: var(--primary); }
 .toast.error   { background: var(--red); }
+
+.toast-text {
+  flex: 1;
+}
+
+.toast-close {
+  border: none;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px;
+  opacity: 0.9;
+}
+
+.toast-close:hover {
+  opacity: 1;
+}
 
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(12px); }

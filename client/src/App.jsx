@@ -6,32 +6,24 @@ import AuthPage     from './pages/AuthPage';
 import Dashboard    from './pages/Dashboard';
 import DevicesPage  from './pages/DevicesPage';
 import AIPage       from './pages/AIPage';
-import { calcDevice } from './utils';
 import { analyzeDevices } from './gemini';
+import {
+  fetchDevices,
+  createDevice as createDeviceApi,
+  deleteDevice as deleteDeviceApi,
+  clearDevices as clearDevicesApi,
+  setApiUser,
+} from './api';
 import './App.css';
 
-function loadDevices() {
-  try { return JSON.parse(localStorage.getItem('ecowatts_devices') || '[]'); }
-  catch { return []; }
-}
-
-function loadUser() {
-  try { return JSON.parse(localStorage.getItem('ecowatts_user') || 'null'); }
-  catch { return null; }
-}
-
 export default function App() {
-  const [user,        setUser]        = useState(loadUser);
+  const [user,        setUser]        = useState(null);
   const [page,        setPage]        = useState('dashboard');
-  const [devices,     setDevices]     = useState(loadDevices);
+  const [devices,     setDevices]     = useState([]);
   const [aiOutput,    setAiOutput]    = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [toast,       setToast]       = useState(null);
   const toastRef = useRef(null);
-
-  useEffect(() => {
-    localStorage.setItem('ecowatts_devices', JSON.stringify(devices));
-  }, [devices]);
 
   const showToast = useCallback((msg, type = 'success') => {
     clearTimeout(toastRef.current);
@@ -39,32 +31,66 @@ export default function App() {
     toastRef.current = setTimeout(() => setToast(null), 3500);
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+
+    let active = true;
+    fetchDevices()
+      .then((list) => {
+        if (active) setDevices(list);
+      })
+      .catch((err) => {
+        showToast(`❌ ${err.message}`, 'error');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user, showToast]);
+
   const handleLogin = useCallback((u) => {
-    localStorage.setItem('ecowatts_user', JSON.stringify(u));
+    setApiUser(u);
     setUser(u);
     setPage('dashboard');
   }, []);
 
   const handleLogout = useCallback(() => {
-    localStorage.removeItem('ecowatts_user');
+    setApiUser(null);
     setUser(null);
     setPage('dashboard');
-  }, []);
-
-  const addDevice = useCallback((raw) => {
-    setDevices(prev => [...prev, calcDevice(raw)]);
-    showToast(`✅ "${raw.name}" added`);
-  }, [showToast]);
-
-  const deleteDevice = useCallback((id) => {
-    setDevices(prev => prev.filter(d => d.id !== id));
-    showToast('🗑️ Device removed', 'error');
-  }, [showToast]);
-
-  const clearAll = useCallback(() => {
     setDevices([]);
     setAiOutput(null);
-    showToast('🗑️ All devices cleared', 'error');
+  }, []);
+
+  const addDevice = useCallback(async (raw) => {
+    try {
+      const created = await createDeviceApi(raw);
+      setDevices(prev => [created, ...prev]);
+      showToast(`✅ "${raw.name}" added`);
+    } catch (err) {
+      showToast(`❌ ${err.message}`, 'error');
+    }
+  }, [showToast]);
+
+  const deleteDevice = useCallback(async (id) => {
+    try {
+      await deleteDeviceApi(id);
+      setDevices(prev => prev.filter(d => d.id !== id));
+      showToast('🗑️ Device removed', 'error');
+    } catch (err) {
+      showToast(`❌ ${err.message}`, 'error');
+    }
+  }, [showToast]);
+
+  const clearAll = useCallback(async () => {
+    try {
+      await clearDevicesApi();
+      setDevices([]);
+      setAiOutput(null);
+      showToast('🗑️ All devices cleared', 'error');
+    } catch (err) {
+      showToast(`❌ ${err.message}`, 'error');
+    }
   }, [showToast]);
 
   const runAnalysis = useCallback(async () => {
@@ -84,7 +110,14 @@ export default function App() {
   }, [devices, showToast]);
 
   // Auth gate
-  if (!user) return <AuthPage onLogin={handleLogin} />;
+  if (!user) {
+    return (
+      <>
+        <AuthPage onLogin={handleLogin} onShowToast={showToast} />
+        {toast && <Toast msg={toast.msg} type={toast.type} onHide={() => setToast(null)} />}
+      </>
+    );
+  }
 
   return (
     <div className="app-shell">

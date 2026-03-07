@@ -8,7 +8,15 @@ export default function Toast({ msg, type, onHide }) {
 
   return (
     <div className={`toast toast-visible ${type || 'success'}`}>
-      {msg}
+      <span className="toast-text">{msg}</span>
+      <button
+        type="button"
+        className="toast-close"
+        onClick={onHide}
+        aria-label="Close notification"
+      >
+        <i className="fa-solid fa-xmark" />
+      </button>
     </div>
   );
 }
