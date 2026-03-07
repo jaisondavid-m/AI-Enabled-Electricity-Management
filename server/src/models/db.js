@@ -26,8 +26,7 @@ async function initializeDatabase() {
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS devices (
-      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-      users_id BIGINT UNSIGNED NULL,
+      user_id BIGINT UNSIGNED NULL,
       name VARCHAR(120) NOT NULL,
       category VARCHAR(60) NOT NULL,
       watts DECIMAL(10,2) NOT NULL,
@@ -37,55 +36,93 @@ async function initializeDatabase() {
       kwhPerDay DECIMAL(12,3) NOT NULL,
       co2PerDay DECIMAL(12,3) NOT NULL,
       costPerMonth DECIMAL(12,1) NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (id)
+      created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
   const [columns] = await pool.query('SHOW COLUMNS FROM devices');
   const existing = new Set(columns.map((col) => String(col.Field).toLowerCase()));
 
-  const columnDefinitions = [
-    ['users_id', 'BIGINT UNSIGNED NULL'],
-    ['name', 'VARCHAR(120) NOT NULL'],
-    ['category', 'VARCHAR(60) NOT NULL'],
-    ['watts', 'DECIMAL(10,2) NOT NULL'],
-    ['hours', 'DECIMAL(10,2) NOT NULL'],
-    ['days', 'INT NOT NULL DEFAULT 7'],
-    ['time', 'VARCHAR(200) DEFAULT NULL'],
-    ['kwhPerDay', 'DECIMAL(12,3) NOT NULL DEFAULT 0'],
-    ['co2PerDay', 'DECIMAL(12,3) NOT NULL DEFAULT 0'],
-    ['costPerMonth', 'DECIMAL(12,1) NOT NULL DEFAULT 0'],
-  ];
-
-  if (!existing.has('id')) {
-    try {
-      await pool.query(
-        'ALTER TABLE devices ADD COLUMN id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST'
-      );
-    } catch {
-      await pool.query(
-        'ALTER TABLE devices ADD COLUMN id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE FIRST'
-      );
-    }
+  if (!existing.has('user_id')) {
+    await pool.query('ALTER TABLE devices ADD COLUMN user_id BIGINT UNSIGNED NULL FIRST');
   }
 
-  for (const [name, definition] of columnDefinitions) {
-    if (!existing.has(name.toLowerCase())) {
-      await pool.query(`ALTER TABLE devices ADD COLUMN ${name} ${definition}`);
-    }
+  if (existing.has('users_id')) {
+    await pool.query('UPDATE devices SET user_id = COALESCE(user_id, users_id)');
   }
 
-  const [fkRows] = await pool.query('SHOW CREATE TABLE devices');
-  const createSql = fkRows[0] && fkRows[0]['Create Table'] ? String(fkRows[0]['Create Table']) : '';
-  if (!createSql.includes('fk_devices_users_id')) {
-    await pool.query(`
-      ALTER TABLE devices
-      ADD CONSTRAINT fk_devices_users_id
-      FOREIGN KEY (users_id) REFERENCES users(id)
-      ON DELETE CASCADE
-    `);
+  if (!existing.has('name')) {
+    await pool.query("ALTER TABLE devices ADD COLUMN name VARCHAR(120) NOT NULL DEFAULT ''");
   }
+  if (!existing.has('category')) {
+    await pool.query("ALTER TABLE devices ADD COLUMN category VARCHAR(60) NOT NULL DEFAULT ''");
+  }
+  if (!existing.has('watts')) {
+    await pool.query('ALTER TABLE devices ADD COLUMN watts DECIMAL(10,2) NOT NULL DEFAULT 0');
+  }
+  if (!existing.has('hours')) {
+    await pool.query('ALTER TABLE devices ADD COLUMN hours DECIMAL(10,2) NOT NULL DEFAULT 0');
+  }
+  if (!existing.has('days')) {
+    await pool.query('ALTER TABLE devices ADD COLUMN days INT NOT NULL DEFAULT 7');
+  }
+  if (!existing.has('time')) {
+    await pool.query('ALTER TABLE devices ADD COLUMN time VARCHAR(200) DEFAULT NULL');
+  }
+  if (!existing.has('kwhperday')) {
+    await pool.query('ALTER TABLE devices ADD COLUMN kwhPerDay DECIMAL(12,3) NOT NULL DEFAULT 0');
+  }
+  if (!existing.has('co2perday')) {
+    await pool.query('ALTER TABLE devices ADD COLUMN co2PerDay DECIMAL(12,3) NOT NULL DEFAULT 0');
+  }
+  if (!existing.has('costpermonth')) {
+    await pool.query('ALTER TABLE devices ADD COLUMN costPerMonth DECIMAL(12,1) NOT NULL DEFAULT 0');
+  }
+  if (!existing.has('created_at')) {
+    await pool.query('ALTER TABLE devices ADD COLUMN created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6)');
+  }
+
+  await pool.query('ALTER TABLE devices MODIFY COLUMN created_at DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6)');
+
+  const [fkConstraints] = await pool.query(`
+    SELECT CONSTRAINT_NAME
+    FROM information_schema.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'devices'
+      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+  `);
+
+  for (const row of fkConstraints) {
+    await pool.query(`ALTER TABLE devices DROP FOREIGN KEY ${row.CONSTRAINT_NAME}`);
+  }
+
+  const [indexRows] = await pool.query('SHOW INDEX FROM devices');
+  const hasPrimary = indexRows.some((row) => row.Key_name === 'PRIMARY');
+  if (hasPrimary) {
+    await pool.query('ALTER TABLE devices DROP PRIMARY KEY');
+  }
+
+  if (existing.has('device_uid')) {
+    await pool.query('ALTER TABLE devices DROP COLUMN device_uid');
+  }
+  if (existing.has('users_id')) {
+    await pool.query('ALTER TABLE devices DROP COLUMN users_id');
+  }
+  if (existing.has('id')) {
+    await pool.query('ALTER TABLE devices DROP COLUMN id');
+  }
+  if (existing.has('is_deleted')) {
+    await pool.query('ALTER TABLE devices DROP COLUMN is_deleted');
+  }
+
+  await pool.query(`
+    ALTER TABLE devices
+    ADD CONSTRAINT fk_devices_user_id
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE
+  `).catch(() => {
+    // Ignore if constraint already exists.
+  });
 }
 
 module.exports = {

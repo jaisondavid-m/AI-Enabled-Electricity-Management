@@ -99,8 +99,8 @@ async function removeDevice(req, res, next) {
       return res.status(401).json({ message: 'Unauthorized user' });
     }
 
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) {
+    const id = String(req.params.id || '').trim();
+    if (!id) {
       return res.status(400).json({ message: 'Invalid device id' });
     }
 
