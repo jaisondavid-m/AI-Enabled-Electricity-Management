@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 
-const SENDER = 'ecowattsai@gmail.com';
+const SENDER = 'jaison7373@gmail.com';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
