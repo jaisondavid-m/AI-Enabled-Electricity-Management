@@ -72,3 +72,10 @@ export function loginUser(payload) {
     body: JSON.stringify(payload),
   });
 }
+
+export function sendReportEmail(payload) {
+  return request('/api/email/send-report', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}

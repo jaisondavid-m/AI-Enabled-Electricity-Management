@@ -14,7 +14,7 @@ export default function AIAnalysis({ devices, isAnalyzing, aiOutput, onAnalyze }
     <section className="section" id="analysis">
       <div className="section-header">
         <h2><i className="fa-solid fa-brain" /> AI Energy Analysis</h2>
-        <p>Get personalised recommendations powered by Google Gemini AI</p>
+        <p>Get personalised recommendations powered by DeepSeek AI</p>
       </div>
 
       <div className="analyze-bar">
@@ -41,7 +41,7 @@ export default function AIAnalysis({ devices, isAnalyzing, aiOutput, onAnalyze }
       {(isAnalyzing || aiOutput) && (
         <div className="ai-output-container" ref={outputRef}>
           <div className="ai-output-header">
-            <span><i className="fa-solid fa-robot" /> Gemini AI Analysis</span>
+            <span><i className="fa-solid fa-robot" /> AI Analysis</span>
             <span className="ai-model-tag">DeepSeek via OpenRouter</span>
           </div>
           <div className="ai-output">

@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { generateMonthlyReport } from '../generateReport';
+import { analyzeDevices } from '../gemini';
+import { sendReportEmail } from '../api';
 
 const RING_COLORS = [
   ['#22c55e','#16a34a'], ['#0ea5e9','#0284c7'],
@@ -104,11 +107,82 @@ function Co2Gauge({ co2PerDay }) {
   );
 }
 
-export default function Dashboard({ devices, user, onNavigate }) {
+export default function Dashboard({ devices, user, onNavigate, onShowToast }) {
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const totalKwh  = devices.reduce((s, d) => s + d.kwhPerDay, 0);
   const totalCo2  = devices.reduce((s, d) => s + d.co2PerDay, 0);
   const totalCost = devices.reduce((s, d) => s + d.costPerMonth, 0);
   const topDevice = devices.length ? devices.reduce((a, b) => a.kwhPerDay > b.kwhPerDay ? a : b) : null;
+
+  const handleGenerateReport = async () => {
+    if (!devices.length) {
+      onShowToast?.('Add devices first to generate a report', 'error');
+      return;
+    }
+    try {
+      setGeneratingReport(true);
+      await generateMonthlyReport(devices, user, analyzeDevices);
+      onShowToast?.('Report downloaded successfully!');
+    } catch (err) {
+      onShowToast?.(`Report failed: ${err.message}`, 'error');
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
+  const handleEmailReport = async () => {
+    if (!devices.length) {
+      onShowToast?.('Add devices first', 'error');
+      return;
+    }
+    const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+    const email = storedUser.email;
+    if (!email) {
+      onShowToast?.('No email found. Please re-login.', 'error');
+      return;
+    }
+    try {
+      setSendingEmail(true);
+      const { blob, filename, aiText } = await generateMonthlyReport(devices, user, analyzeDevices);
+
+      // Convert blob to base64
+      const reader = new FileReader();
+      const pdfBase64 = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+
+      const totalKwh = devices.reduce((s, d) => s + d.kwhPerDay, 0);
+      const totalCo2 = devices.reduce((s, d) => s + d.co2PerDay, 0);
+      const totalCost = devices.reduce((s, d) => s + d.costPerMonth, 0);
+
+      await sendReportEmail({
+        email,
+        userName: user.name,
+        devices,
+        summary: {
+          totalDevices: devices.length,
+          dailyKwh: totalKwh.toFixed(1),
+          monthlyKwh: (totalKwh * 30).toFixed(0),
+          dailyCo2: totalCo2.toFixed(2),
+          monthlyCo2: (totalCo2 * 30).toFixed(1),
+          annualCo2: (totalCo2 * 365).toFixed(0),
+          monthlyCost: totalCost.toFixed(0),
+          potentialSaving: (totalCost * 0.25).toFixed(0),
+        },
+        aiText,
+        pdfBase64,
+        filename,
+      });
+      onShowToast?.(`Report sent to ${email}!`);
+    } catch (err) {
+      onShowToast?.(`Email failed: ${err.message}`, 'error');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   return (
     <div className="page-content">
@@ -118,9 +192,27 @@ export default function Dashboard({ devices, user, onNavigate }) {
           <h1 className="page-title">Dashboard</h1>
           <p className="page-sub">Welcome back, <strong>{user.name}</strong> · {new Date().toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' })}</p>
         </div>
-        <button className="btn-action" onClick={() => onNavigate('devices')}>
-          <i className="fa-solid fa-plus" /> Add Device
-        </button>
+        <div className="page-header-actions">
+          <button
+            className="btn-action btn-report"
+            onClick={handleGenerateReport}
+            disabled={generatingReport || sendingEmail}
+          >
+            <i className={generatingReport ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-file-pdf'} />
+            {generatingReport ? 'Generating...' : 'Download Report'}
+          </button>
+          <button
+            className="btn-action btn-email"
+            onClick={handleEmailReport}
+            disabled={sendingEmail || generatingReport}
+          >
+            <i className={sendingEmail ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-envelope'} />
+            {sendingEmail ? 'Sending...' : 'Email Report'}
+          </button>
+          <button className="btn-action" onClick={() => onNavigate('devices')}>
+            <i className="fa-solid fa-plus" /> Add Device
+          </button>
+        </div>
       </div>
 
       {/* KPI row */}
@@ -219,10 +311,10 @@ export default function Dashboard({ devices, user, onNavigate }) {
           </div>
           <div className="monthly-stats">
             {[
-              { label: 'Units consumed', val: `${(totalKwh * 30).toFixed(0)} kWh`, icon: 'fa-bolt',  color: 'var(--accent)' },
-              { label: 'CO₂ emitted',    val: `${(totalCo2 * 30).toFixed(1)} kg`,  icon: 'fa-cloud', color: 'var(--red)'    },
-              { label: 'Est. cost',       val: `₹${totalCost.toFixed(0)}`,          icon: 'fa-rupee-sign', color: 'var(--yellow)' },
-              { label: 'Potential save',  val: `₹${(totalCost * 0.25).toFixed(0)}`, icon: 'fa-piggy-bank', color: 'var(--green)'  },
+              { label: ' Units consumed ', val: `${(totalKwh * 30).toFixed(0)} kWh`, icon: 'fa-bolt',  color: 'var(--accent)' },
+              { label: ' CO₂ emitted ',    val: `${(totalCo2 * 30).toFixed(1)} kg`,  icon: 'fa-cloud', color: 'var(--red)'    },
+              { label: ' Est. cost ',       val: `₹${totalCost.toFixed(0)}`,          icon: 'fa-rupee-sign', color: 'var(--yellow)' },
+              { label: ' Potential save ',  val: `₹${(totalCost * 0.25).toFixed(0)}`, icon: 'fa-piggy-bank', color: 'var(--green)'  },
             ].map(s => (
               <div className="monthly-row" key={s.label}>
                 <i className={`fa-solid ${s.icon}`} style={{ color: s.color }} />

@@ -16,8 +16,19 @@ import {
 } from './api';
 import './App.css';
 
+function loadUser() {
+  try {
+    const raw = localStorage.getItem('user');
+    if (raw) {
+      const u = JSON.parse(raw);
+      if (u && u.id) { setApiUser(u); return u; }
+    }
+  } catch { /* corrupted data */ }
+  return null;
+}
+
 export default function App() {
-  const [user,        setUser]        = useState(null);
+  const [user,        setUser]        = useState(loadUser);
   const [page,        setPage]        = useState('dashboard');
   const [devices,     setDevices]     = useState([]);
   const [aiOutput,    setAiOutput]    = useState(null);
@@ -51,12 +62,14 @@ export default function App() {
   const handleLogin = useCallback((u) => {
     setApiUser(u);
     setUser(u);
+    localStorage.setItem('user', JSON.stringify(u));
     setPage('dashboard');
   }, []);
 
   const handleLogout = useCallback(() => {
     setApiUser(null);
     setUser(null);
+    localStorage.removeItem('user');
     setPage('dashboard');
     setDevices([]);
     setAiOutput(null);
@@ -125,7 +138,7 @@ export default function App() {
 
       <main className="app-main">
         {page === 'dashboard' && (
-          <Dashboard devices={devices} user={user} onNavigate={setPage} />
+          <Dashboard devices={devices} user={user} onNavigate={setPage} onShowToast={showToast} />
         )}
         {page === 'devices' && (
           <DevicesPage

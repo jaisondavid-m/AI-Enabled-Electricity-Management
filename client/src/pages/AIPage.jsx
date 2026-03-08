@@ -18,7 +18,7 @@ export default function AIPage({ devices, isAnalyzing, aiOutput, onAnalyze }) {
           <p className="page-sub">Personalized recommendations powered by DeepSeek AI for a greener home.</p>
         </div>
         <div className="ai-model-badge">
-          <i className="fa-solid fa-microchip" /> DeepSeek via OpenRouter
+          <i className="fa-solid fa-microchip" /> DeepSeek
         </div>
       </div>
 

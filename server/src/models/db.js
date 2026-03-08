@@ -93,13 +93,13 @@ async function initializeDatabase() {
   `);
 
   for (const row of fkConstraints) {
-    await pool.query(`ALTER TABLE devices DROP FOREIGN KEY ${row.CONSTRAINT_NAME}`);
+    await pool.query(`ALTER TABLE devices DROP FOREIGN KEY ${row.CONSTRAINT_NAME}`).catch(() => {});
   }
 
   const [indexRows] = await pool.query('SHOW INDEX FROM devices');
   const hasPrimary = indexRows.some((row) => row.Key_name === 'PRIMARY');
   if (hasPrimary) {
-    await pool.query('ALTER TABLE devices DROP PRIMARY KEY');
+    await pool.query('ALTER TABLE devices DROP PRIMARY KEY').catch(() => {});
   }
 
   if (existing.has('device_uid')) {
